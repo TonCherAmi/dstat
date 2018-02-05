@@ -12,7 +12,9 @@
 #include <xcb/xcb.h>
 #include <xcb/xcb_icccm.h>
 
+
 #define LENGTH(X) (sizeof X  / sizeof X[0])
+
 
 /* module info functions */
 
@@ -28,11 +30,14 @@ static int date(char *modbuf, size_t n);
 static int mpd(char *modbuf, size_t n);
 #endif
 
+
 /* config */
 
 #include "config.h"
 
+
 static void write_modules(char *statbuf, size_t n);
+
 
 /* module helper functions */
 
@@ -44,6 +49,7 @@ static void mpd_cur_song_info(struct mpd_connection *c,
                               char *songbuf,
                               size_t n);
 #endif
+
 
 /* xcb helper functions */
 
@@ -57,12 +63,13 @@ static xcb_screen_t *x_get_screen(xcb_connection_t *c, int nscreen);
  */
 static void x_set_wm_name(xcb_connection_t *c, xcb_window_t wid, const char *str);
 
+
 int main()
 {
     int nscreen;
     xcb_connection_t *c = xcb_connect(NULL, &nscreen);
 
-    if (xcb_connection_has_error(c) != 0) {
+    if (xcb_connection_has_error(c)) {
         return EXIT_FAILURE;
     }
 
@@ -155,7 +162,7 @@ void write_modules(char *statbuf, size_t n)
         int errno = modules[i](modbuf, DSTAT_MAX_MODBUFSIZE);
 
         if (errno) {
-            break;
+            continue;
         }
 
         strncat(statbuf, modbuf, DSTAT_MAX_MODBUFSIZE - 1);

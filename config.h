@@ -1,16 +1,16 @@
 /* maximum total status size */
-#define MAX_STATSIZE 500
+#define DSTAT_MAX_STATBUFSIZE 500
 
 /* maximum module length */
-#define MAX_BUFFSIZE 100
+#define DSTAT_MAX_MODBUFSIZE 100
 
 /* module separator */
 static const char separator[] = " :: ";
 
-/* see man strftime for the list of available tokens */
-static const char date_format[] = "[ %a %b %e ] ( %I:%M:%S )";
+/* mpd configuration variables */
+const char *mpd_host = "localhost";
+const unsigned mpd_port = 6600;
+const unsigned mpd_timeout = 0;
 
-module_t modules[] = {
-    /* module name      argument */
-    { date,             { .v = datefmt } },
-};
+/* module array */
+static int (*modules[])(char *, size_t) = { mpd, date };

@@ -1,6 +1,10 @@
-CC = cc
-LIB = -lxcb -lxcb-icccm
+include config.mk
+
+PROGNAME := dstat
+
+SRC := dstat.c
+OBJ := ${SRC:.c=.o}
 
 all:
-	${CC} -c dstat.c -std=c99
-	${CC} -o dstat dstat.o ${LIB}
+	${CC} -c ${SRC} ${CFLAGS}
+	${CC} -o ${PROGNAME} ${OBJ} ${LIB}

@@ -6,13 +6,18 @@ CC := cc
 
 XLIB := -lxcb -lxcb-icccm
 
+# comment out to disable alsa support
+ALSAFLAGS := -DALSA
+ALSALIB := -lasound
+
 # comment out to disable mpd support
 MPDFLAGS := -DMPD
 MPDLIB := -lmpdclient
 
-LIB := ${XLIB} ${MPDLIB}
+MODFLAGS := ${ALSAFLAGS} ${MPDFLAGS}
+LIB := ${XLIB} ${ALSALIB} ${MPDLIB}
 
 # flags
 
-CFLAGS := -std=c99 -pedantic -Wall ${MPDFLAGS}
+CFLAGS := -std=c99 -pedantic -Wall -D_POSIX_C_SOURCE=200809L ${MODFLAGS}
 LDFLAGS := ${LIB}

@@ -1,9 +1,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <time.h>
+
+#ifdef ALSA
+#include <alsa/asoundlib.h>
+#endif
 
 #ifdef MPD
 #include <mpd/client.h>
@@ -16,12 +19,23 @@
 #define LENGTH(X) (sizeof X  / sizeof X[0])
 
 
-/* module info functions */
+/* writes module info to the status buffer */
+static void write_modules(char *statbuf, size_t n);
+
+
+/* module functions */
 
 /**
  * writes current date and time to the buffer
  */
 static int date(char *modbuf, size_t n);
+
+#ifdef ALSA
+/**
+ * writes current alsa volume level to the buffer
+ */
+static int alsa(char *modbuf, size_t n);
+#endif
 
 #ifdef MPD
 /**
@@ -36,10 +50,14 @@ static int mpd(char *modbuf, size_t n);
 #include "config.h"
 
 
-static void write_modules(char *statbuf, size_t n);
-
-
 /* module helper functions */
+
+#ifdef ALSA
+/**
+ * initializes internal alsa stuff
+ */
+int alsa_init(snd_mixer_t **mixer, snd_mixer_elem_t **elem);
+#endif
 
 #ifdef MPD
 /**
@@ -90,12 +108,33 @@ int main()
 
         x_set_wm_name(c, root, statbuf);
 
-        sleep(1);
+        nanosleep(&interval, NULL);
     }
 
     xcb_disconnect(c);
 
     return EXIT_SUCCESS;
+}
+
+void write_modules(char *statbuf, size_t n)
+{
+    char modbuf[DSTAT_MAX_MODBUFSIZE];
+
+    for (int i = 0; i < LENGTH(modules); i++) {
+        memset(modbuf, 0, DSTAT_MAX_MODBUFSIZE);
+
+        int err = modules[i](modbuf, DSTAT_MAX_MODBUFSIZE);
+
+        if (err) {
+            continue;
+        }
+
+        strncat(statbuf, modbuf, DSTAT_MAX_MODBUFSIZE - 1);
+
+        if (i != LENGTH(modules) - 1 && strlen(modbuf)) {
+            strcat(statbuf, separator);
+        }
+    }
 }
 
 int date(char *modbuf, size_t n)
@@ -105,6 +144,63 @@ int date(char *modbuf, size_t n)
 
     return !strftime(modbuf, n, fmt, localtime(&now));
 }
+
+#ifdef ALSA
+int alsa(char *modbuf, size_t n)
+{
+    static snd_mixer_t *mixer = NULL;
+    static snd_mixer_elem_t *elem = NULL;
+
+    int err = 0;
+
+    if (!mixer && !elem) {
+        err = alsa_init(&mixer, &elem);
+
+        if (err) {
+            goto out;
+        }
+    }
+
+    long vol_min;
+    long vol_max;
+
+    if (snd_mixer_selem_get_playback_volume_range(elem, &vol_min, &vol_max)) {
+        err = 2;
+        goto free_mixer;
+    }
+
+    int nchan = 0;
+    long vol_total = 0;
+
+    for (snd_mixer_selem_channel_id_t chan_id = SND_MIXER_SCHN_FRONT_LEFT;
+         chan_id <= SND_MIXER_SCHN_LAST;
+         chan_id++) {
+        if (snd_mixer_selem_has_playback_channel(elem, chan_id)) {
+            long vol_current;
+
+            if (snd_mixer_selem_get_playback_volume(elem, chan_id, &vol_current)) {
+                err = 3;
+                goto free_mixer;
+            }
+
+            nchan++;
+            vol_total += vol_current;
+        }
+    }
+
+    snprintf(modbuf, n, "< %ld >", vol_total / nchan);
+
+    goto out;
+
+free_mixer:
+    snd_mixer_close(mixer);
+
+    mixer = NULL;
+    elem = NULL;
+out:
+    return err;
+}
+#endif
 
 #ifdef MPD
 int mpd(char *modbuf, size_t n)
@@ -152,26 +248,67 @@ int mpd(char *modbuf, size_t n)
 }
 #endif
 
-void write_modules(char *statbuf, size_t n)
+#ifdef ALSA
+int alsa_init(snd_mixer_t **mixer, snd_mixer_elem_t **elem)
 {
-    char modbuf[DSTAT_MAX_MODBUFSIZE];
+    int err = 0;
 
-    for (int i = 0; i < LENGTH(modules); i++) {
-        memset(modbuf, 0, DSTAT_MAX_MODBUFSIZE);
+    snd_mixer_t *m;
 
-        int errno = modules[i](modbuf, DSTAT_MAX_MODBUFSIZE);
-
-        if (errno) {
-            continue;
-        }
-
-        strncat(statbuf, modbuf, DSTAT_MAX_MODBUFSIZE - 1);
-
-        if (i != LENGTH(modules) - 1 && strlen(modbuf)) {
-            strcat(statbuf, separator);
-        }
+    if (snd_mixer_open(&m, 1)) {
+        err = 1;
+        goto out;
     }
+
+    snd_config_update_free_global();
+
+    if (snd_mixer_attach(m, alsa_soundcard)) {
+        err = 2;
+        goto free_mixer;
+    }
+
+    if (snd_mixer_selem_register(m, NULL, NULL)) {
+        err = 3;
+        goto free_mixer;
+    }
+
+    if (snd_mixer_load(m)) {
+        err = 4;
+        goto free_mixer;
+    }
+
+    snd_mixer_selem_id_t *selem_id = NULL;
+
+    if (snd_mixer_selem_id_malloc(&selem_id)) {
+        err = 5;
+        goto free_mixer;
+    }
+
+    snd_mixer_selem_id_set_index(selem_id, 0);
+    snd_mixer_selem_id_set_name(selem_id, alsa_mixer);
+
+    snd_mixer_elem_t *e;
+
+    if ((e = snd_mixer_find_selem(m, selem_id)) == NULL) {
+        err = 6;
+        goto free_selem_id;
+    }
+
+    *mixer = m;
+    *elem = e;
+
+    snd_mixer_selem_id_free(selem_id);
+
+    goto out;
+
+free_selem_id:
+    snd_mixer_selem_id_free(selem_id);
+free_mixer:
+    snd_mixer_close(m);
+out:
+    return err;
 }
+#endif
 
 #ifdef MPD
 void mpd_cur_song_info(struct mpd_connection *c, char *songbuf, size_t n)

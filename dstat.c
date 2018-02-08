@@ -181,6 +181,16 @@ int alsa(char *modbuf, size_t n)
         }
     }
 
+    if (snd_mixer_wait(mixer, 25)) {
+        err = 1;
+        goto out;
+    }
+
+    if (snd_mixer_handle_events(mixer) < 0) {
+        err = 1;
+        goto out;
+    }
+
     long vol_min;
     long vol_max;
 

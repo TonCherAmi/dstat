@@ -208,7 +208,9 @@ int alsa(char *modbuf, size_t n)
         if (snd_mixer_selem_has_playback_channel(elem, chan_id)) {
             long vol_current;
 
-            if (snd_mixer_selem_get_playback_volume(elem, chan_id, &vol_current)) {
+            if (snd_mixer_selem_get_playback_volume(elem,
+                                                    chan_id,
+                                                    &vol_current)) {
                 err = 3;
                 goto free_mixer;
             }

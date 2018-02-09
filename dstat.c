@@ -351,11 +351,12 @@ void mpd_cur_song_info(struct mpd_connection *c, char *songbuf, size_t n)
         return;
     }
 
+    const char *track = mpd_song_get_tag(song, MPD_TAG_TRACK, 0);
     const char *artist = mpd_song_get_tag(song, MPD_TAG_ARTIST, 0);
     const char *title = mpd_song_get_tag(song, MPD_TAG_TITLE, 0);
 
-    if (artist && title) {
-        snprintf(songbuf, n, "%s - %s", artist, title);
+    if (track && artist && title) {
+        snprintf(songbuf, n, "%s : %s - %s", track, artist, title);
     } else {
         snprintf(songbuf, n, "%s", mpd_song_get_uri(song));
     }

@@ -29,6 +29,7 @@
 #endif
 
 #ifdef MPD
+#include <libgen.h>
 #include <mpd/client.h>
 #endif
 
@@ -358,7 +359,16 @@ void mpd_cur_song_info(struct mpd_connection *c, char *songbuf, size_t n)
     if (track && artist && title) {
         snprintf(songbuf, n, "%s : %s - %s", track, artist, title);
     } else {
-        snprintf(songbuf, n, "%s", mpd_song_get_uri(song));
+        const char *uri = mpd_song_get_uri(song);
+
+        char *basebuf = malloc(strlen(uri) + 1);
+        memcpy(basebuf, uri, strlen(uri) + 1);
+
+        const char *base = basename(basebuf);
+
+        snprintf(songbuf, n, "%s", base);
+
+        free(basebuf);
     }
 
     mpd_song_free(song);

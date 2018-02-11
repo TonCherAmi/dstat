@@ -85,6 +85,7 @@ int alsa_init(snd_mixer_t **mixer, snd_mixer_elem_t **elem);
  * writes info on currently playing song to the buffer
  */
 static void mpd_cur_song_info(struct mpd_connection *c,
+                              struct mpd_status *s,
                               char *songbuf,
                               size_t n);
 #endif
@@ -264,7 +265,7 @@ int mpd(char *modbuf, size_t n)
     if (state == MPD_STATE_PLAY || state == MPD_STATE_PAUSE) {
         char songbuf[n - 20];
 
-        mpd_cur_song_info(c, songbuf, n - 20);
+        mpd_cur_song_info(c, status, songbuf, n - 20);
         snprintf(modbuf,
                  n,
                  "%u:%02u / %u:%02u . %s",
@@ -344,7 +345,10 @@ out:
 #endif
 
 #ifdef MPD
-void mpd_cur_song_info(struct mpd_connection *c, char *songbuf, size_t n)
+void mpd_cur_song_info(struct mpd_connection *c,
+                       struct mpd_status *s,
+                       char *songbuf,
+                       size_t n)
 {
     struct mpd_song *song = mpd_run_current_song(c);
 
@@ -352,12 +356,13 @@ void mpd_cur_song_info(struct mpd_connection *c, char *songbuf, size_t n)
         return;
     }
 
-    const char *track = mpd_song_get_tag(song, MPD_TAG_TRACK, 0);
+    int pos = mpd_status_get_song_pos(s);
+    int que = mpd_status_get_queue_length(s);
     const char *artist = mpd_song_get_tag(song, MPD_TAG_ARTIST, 0);
     const char *title = mpd_song_get_tag(song, MPD_TAG_TITLE, 0);
 
-    if (track && artist && title) {
-        snprintf(songbuf, n, "%s : %s - %s", track, artist, title);
+    if (artist && title) {
+        snprintf(songbuf, n, "%i / %i : %s - %s", pos, que, artist, title);
     } else {
         const char *uri = mpd_song_get_uri(song);
 
